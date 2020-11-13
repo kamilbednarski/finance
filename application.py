@@ -53,12 +53,25 @@ def index():
     user = db.execute("SELECT cash FROM users WHERE id = :id", id=user_id)
     balance = float(user[0]["cash"])
 
-    # Get user's stock portfolio
-    db.execute("SELECT * FROM :user_account", user_account=username)
+    stocks_value = 0
+    profit = 0
 
+    # Get user's stock portfolio
+    stocks = db.execute("SELECT * FROM :user_account ORDER BY symbol ASC", user_account=username)
+
+    # List every stock position
+    for i in range(len(stocks)):
+        stock = lookup(stocks[i]["symbol"])
+        stocks[i]["company"] = stock["name"]
+        stocks[i]["unit_value"] = float(stock["price"])
+        stocks[i]["total_value"] = float(stock["price"]) * float(stocks[i]["shares"])
+
+        stocks_value += float(stock["price"]) * float(stocks[i]["shares"])
+
+    total_assets = balance + stocks_value
 
     # Render index.html with stock and funds summary
-    return render_template("index.html", balance=balance)
+    return render_template("index.html", balance=balance, stocks=stocks, total_assets=total_assets, stocks_value=stocks_value)
 
 
 
@@ -69,6 +82,7 @@ def buy():
     # User reached route via POST (as by submitting a form via POST)
     if request.method == "POST":
 
+        # COLLECTING AND CHECKING DATA FROM SUBMITTED FORM
         # Ensure stock symbol was submitted
         if not request.form.get("symbol"):
             return render_template("buy.html")
@@ -92,17 +106,22 @@ def buy():
         if not stock:
             return apology("symbol not found or wrong symbol", 403)
 
+
+        # TRANSACTION PROCESS
+        # Save transaction type
+        transaction_type = "buy"
         # Save user id
         user_id = session["user_id"]
         # Save stock symbol
         symbol = request.form.get("symbol")
         # Save amount of shares
-        amount = request.form.get("shares")
+        amount = int(request.form.get("shares"))
         # Extract price of single share
-        price = stock["price"]
+        price = float(stock["price"])
+
 
         # Calculate total cost of potential purchase
-        total_price = float(price) * float(amount)
+        total_price = price * float(amount)
 
         # Get user's account balance
         user = db.execute("SELECT * FROM users WHERE id = :id", id=user_id)
@@ -113,17 +132,30 @@ def buy():
         if balance < total_price:
             return apology("not enough credit", 403)
 
-        # If there are sufficient funds in your account calculate new account balance
+        # Calculate new account balance
         updated_balance = balance - total_price
 
         # Update balance in database, table 'users'
         db.execute("UPDATE users SET cash = :updated_balance WHERE id = :id", updated_balance=updated_balance, id=user_id)
 
-        # Save bought stocks in database, table ':username' where username=user[0]["username"]
-        db.execute("INSERT INTO :user_account (stock, shares) VALUES (:stock_symbol, :shares_amount)", user_account=session["username"], stock_symbol=symbol, shares_amount=amount)
+        # Register transaction in history
+        db.execute("INSERT INTO history (username, type, symbol, shares, total_value, balance_before, balance_after) VALUES (:username, :type, :symbol, :shares, :total_value, :balance_before, :balance_after)", username=session["username"], type=transaction_type, symbol=symbol, shares=amount, total_value=(amount * price), balance_before=balance, balance_after=balance-(amount * price))
+
+        # Check in database if any other stocks with matching symbol were found
+        matching_stocks = db.execute("SELECT * FROM :user_account WHERE symbol = :symbol", user_account=session["username"], symbol=symbol)
+        if len(matching_stocks) != 0:
+            existing_amount = matching_stocks[0]["shares"]
+            existing_symbol = matching_stocks[0]["symbol"]
+            # If matching stocks found, update number of shares
+            db.execute("UPDATE :user_account SET shares = :shares_amount WHERE symbol = :symbol", user_account=session["username"], shares_amount=existing_amount+amount, symbol=existing_symbol)
+
+        # If no stocks with matching symbol were found
+        else:
+            # Save bought stocks in database, table ':username', where username=session["username"]
+            db.execute("INSERT INTO :user_account (symbol, shares) VALUES (:stock_symbol, :shares_amount)", user_account=session["username"], stock_symbol=symbol, shares_amount=amount)
 
         # After succesful transaction redirect to main page with account summary
-        return render_template("index.html")
+        return index()
 
     # User reached route via GET (as by clicking a link or via redirect)
     else:
@@ -134,8 +166,16 @@ def buy():
 @app.route("/history")
 @login_required
 def history():
-    """Show history of transactions"""
-    return apology("TODO")
+
+    # Save user's id and username
+    user_id = session["user_id"]
+    username = session["username"]
+
+    # Get user's history from database
+    history = db.execute("SELECT * FROM history WHERE username = :username", username = username)
+
+    # Render history.html with user's records
+    return render_template("history.html", history=history)
 
 
 
@@ -260,8 +300,8 @@ def register():
         # Add new user to database, table 'users'
         db.execute("INSERT INTO users (username, hash) VALUES(:username, :hash)", username=new_username, hash=new_hash)
 
-        # Create new table with name equal to user's username to store user's transactions
-        db.execute("CREATE TABLE :username(stock TEXT, shares INTEGER)", username=new_username)
+        # Create new table with name equal to user's username to create user's stock portfolio
+        db.execute("CREATE TABLE :username(symbol TEXT, shares INTEGER)", username=new_username)
 
         # Redirect user to login page
         return redirect("/login")
@@ -275,9 +315,87 @@ def register():
 @app.route("/sell", methods=["GET", "POST"])
 @login_required
 def sell():
-    """Sell shares of stock"""
-    return apology("TODO")
 
+    # User reached route via POST (as by submitting a form via POST)
+    if request.method == "POST":
+
+        # COLLECTING AND CHECKING DATA FROM SUBMITTED FORM
+        # Ensure stock symbol was submitted
+        if not request.form.get("symbol"):
+            return render_template("sell.html")
+
+        # Ensure number of shares was submited
+        if not request.form.get("shares"):
+            return render_template("sell.html")
+
+        # Ensure input in field 'shares' is integer
+        if not request.form.get("shares").isdigit():
+            return render_template("sell.html")
+
+        # Ensure number of shares is greater than 0
+        if int(request.form.get("shares")) <= 0:
+            return render_template("sell.html")
+
+        # Request for stock information using submitted stock symbol
+        stock = lookup(request.form.get("symbol"))
+
+        # If submitted symbol does not mach any stock symbol from data provider
+        if not stock:
+            return apology("symbol not found or wrong symbol", 403)
+
+
+        # TRANSACTION PROCESS
+        # Save transaction type
+        transaction_type = "sell"
+        # Save user id
+        user_id = session["user_id"]
+        # Save stock symbol
+        symbol = request.form.get("symbol")
+        # Save amount of shares
+        amount = int(request.form.get("shares"))
+        # Extract price of single share
+        price = float(stock["price"])
+        # Calculate total value of potential sale
+        total_price = price * float(amount)
+
+        # Check if there are stocks with matching symbol in user's account
+        matching_stocks = db.execute("SELECT * FROM :user_account WHERE symbol = :symbol", user_account=session["username"], symbol=symbol)
+        if len(matching_stocks) == 0:
+            return apology("You dont have requested stocks in your account")
+
+
+        # SALE
+        # Check if there are enough shares to finalize sale
+        elif matching_stocks[0]["shares"] < amount:
+            return apology("You dont have enough shares of pointed stock")
+
+        # If user wants to sell all shares of particular stock
+        elif matching_stocks[0]["shares"] == amount:
+            db.execute("DELETE FROM :user_account WHERE symbol = :symbol", user_account=session["username"], symbol=symbol)
+
+        elif matching_stocks[0]["shares"] > amount:
+            db.execute("UPDATE :user_account SET shares = :shares WHERE symbol = :symbol", user_account=session["username"], shares=matching_stocks[0]["shares"]-amount, symbol=symbol)
+
+        #UPDATE FUNDS
+        # Get user's account balance
+        user = db.execute("SELECT * FROM users WHERE id = :id", id=user_id)
+        balance = float(user[0]["cash"])
+
+        # Calculate new account balance
+        updated_balance = balance + total_price
+
+        # Update balance in database, table 'users'
+        db.execute("UPDATE users SET cash = :updated_balance WHERE id = :id", updated_balance=updated_balance, id=user_id)
+
+        # Register transaction in history
+        db.execute("INSERT INTO history (username, type, symbol, shares, total_value, balance_before, balance_after) VALUES (:username, :type, :symbol, :shares, :total_value, :balance_before, :balance_after)", username=session["username"], type=transaction_type, symbol=symbol, shares=amount, total_value=(amount * price), balance_before=balance, balance_after=updated_balance)
+
+        # After succesful transaction redirect to main page with account summary
+        return index()
+
+    # User reached route via GET (as by clicking a link or via redirect)
+    else:
+        return render_template("sell.html")
 
 def errorhandler(e):
     """Handle error"""
