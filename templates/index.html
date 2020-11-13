@@ -5,7 +5,56 @@
 {% endblock %}
 
 {% block main %}
-    <div>
-        <p>Account balance (funds): {{ balance }}</p>
-    </div>
+
+        <!-- Tables to render current account summary -->
+        <!-- Table with total stocks value and avaiable funds -->
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Funds avaiable</th>
+                    {% if stocks %}
+                    <th>Stocks value</th>
+                    <th>Total assets</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>{{ "$%.2f"|format(balance) }}</td>
+                    {% if stocks %}
+                    <td>{{ "$%.2f"|format(stocks_value) }}</td>
+                    <td class="font-weight-bold">{{ "$%.2f"|format(total_assets) }}</td>
+                    {% endif %}
+                </tr>
+            </tbody>
+        </table>
+        <p></p>
+
+        {% if stocks %}
+        <!-- Table with details about owned stocks -->
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Company</th>
+                    <th>Current price</th>
+                    <th>Shares</th>
+                    <th>Total value</th>
+
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Separate row for each company's stocks  -->
+                {% for stock in stocks %}
+                <tr>
+                    <td>{{ stocks[loop.index-1]["symbol"] }}</td>
+                    <td>{{ stocks[loop.index-1]["company"] }}</td>
+                    <td>{{ "$%.2f"|format(stocks[loop.index-1]["unit_value"]) }}</td>
+                    <td>{{ stocks[loop.index-1]["shares"] }}</td>
+                    <td>{{ "$%.2f"|format(stocks[loop.index-1]["total_value"]) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
 {% endblock %}
