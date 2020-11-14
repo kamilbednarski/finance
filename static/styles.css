@@ -1,7 +1,60 @@
+/*.test
+{
+    border-radius: 25px;
+    box-shadow: inset -3px -3px 5px #ffffff70, inset 3px 3px 15px #00000070;
+}
+*/
+::placeholder
+{
+  color: #d8d8d8 !important;
+}
+
+.off-white-background
+{
+    background-color:  #f5f5f5;
+}
+.neu-border
+{
+    box-shadow: 3px 3px 11px #00000015;
+    padding-top: 20px;
+    padding-bottom: 20px;
+}
+
+.toggle-neu-border
+{
+    border-radius: 4px;
+    box-shadow:  -3px -3px 5px #ffffff,  3px 3px 15px #00000030;
+    border: none;
+}
+
+.button-neu-border
+{
+    padding-right: 15px;
+    padding-left: 15px;
+    border-radius: 15px;
+    box-shadow:  -3px -3px 5px #ffffff,  3px 3px 11px #00000030;
+    border: none;
+    background-color: #00968890;
+    color: #ffffff;
+}
+
+.input-neu-border
+{
+    border-radius: 15px;
+    box-shadow:  inset -3px -3px 5px #ffffff,  inset 3px 3px 10px #00000020;
+    border: none;
+    background-color: #f5f5f5;
+}
+
 nav .navbar-brand
 {
     /* size for brand */
     font-size: xx-large;
+    padding-left: 15%;
+    padding-right: 15%;
+    border-radius: 15px;
+    box-shadow:  -3px -3px 5px #ffffff,  3px 3px 10px #00000010;
+    border: none;
 }
 
 /* colors for brand */
@@ -9,9 +62,9 @@ nav .navbar-brand .blue
 {
     color: #537fbe;
 }
-nav .navbar-brand .red
+nav .navbar-brand .turquoise
 {
-    color: #ea433b;
+    color: #009688;
 }
 nav .navbar-brand .yellow
 {
@@ -44,4 +97,9 @@ main img
 {
     /* constrain images on small screens */
     max-width: 100%;
+}
+
+.turquoise
+{
+    color: #009688;
 }
